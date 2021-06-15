@@ -1,5 +1,6 @@
 This is a repository that contains Python scripts to extract information from GPS data and ultimately explore the ionospheric structures around GMRT by using Total Electron Content (TEC) measurements. 
 
+Hours of missing data: \
 2017, Day 314:JK \
 2018, Day 034:IJKLNOPQRSTUVWX \
 2018, Day 058:ABCDEFGH \
