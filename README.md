@@ -27,4 +27,4 @@ This is a repository that contains Python scripts to extract information from GP
 2018, Day 354:LMNOPQRSTUVWX \
 2018, Day 361:ABCDEFGHI \
 2019, Day 004:JKMNOPQRSTUVWX \
-2019, Day 030:ABCDEFGHILMNOPQRSTUVWX \
+2019, Day 030:ABCDEFGHILMNOPQRSTUVWX
