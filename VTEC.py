@@ -1,5 +1,3 @@
-import os
-import matplotlib
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import rc
@@ -8,10 +6,12 @@ import glob
 from day import day
 import datetime
 import iri2016 as ion
+import mapping_functions as map
 
 rc("text", usetex = True)
 R_earth = 6371
 h_ion = 350
+d = 100
 lat = 19.0919   #latitude of GMRT
 long = 74.0506  #longitude of GMRT
 
@@ -23,17 +23,20 @@ def TOW2UT(TOW):
 def rms(array):
 	return np.sqrt(np.mean(array**2))
 
-def map1(el):
-	f = R_earth/(R_earth + h_ion)
-	map_function = []
-	for theta in el:
-		theta_rad = np.deg2rad(theta)
-		a = 1/np.cos(90 - theta_rad)
-		map_function.append(a)
-	map_function = np.asarray(map_function)
-	return map_function
+def map_comparison(el, maps):
+	plt.figure()
+	for map_fn in maps:
+		map_method = getattr(mapping_functions, map_fn)
+		plt.plot(el, map_method(el), label = map_fn)
+	plt.xlabel("Elevation ($^\circ$)")
+	plt.ylabel("Map function")
+	plt.title("Map function comparison")
+	plt.legend()
+	plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/map_fn_comparison.png")
+	plt.show()
+	plt.close()
 
-def VTEC_time(all_dfs):
+def VTEC_time(all_dfs, map_fn):
 	
 	for day in all_dfs:
 		print(day)
@@ -46,13 +49,14 @@ def VTEC_time(all_dfs):
 		l = 0
 		for satellite in SVID:
 			df_sat = df_day.loc[df_day['SVID'] == satellite, ['TOW', 'elevation', 'TEC', 'locktime']]
-			df_p = df_sat.loc[df_sat['TEC']>0, ['TOW', 'elevation', 'TEC', 'locktime']] 
+			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
 			
+			map_method = getattr(map, map_fn)
 			minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation']]
-			minlock['VTEC'] = minlock['TEC']/map1(minlock['elevation'])
+			minlock['VTEC'] = minlock['TEC']/map_method(minlock['elevation'])
 			minlock_VTEC = minlock.loc[minlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock['VTEC'] = maxlock['TEC']/map1(maxlock['elevation'])
+			maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
 			maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 			
 			plt.figure(0)
@@ -69,7 +73,7 @@ def VTEC_time(all_dfs):
 		t5 = np.max(TOW)
 		
 		plt.figure(0)
-		x = plt.clim(0,90)
+		x = plt.clim(30,90)
 		plt.colorbar()
 		plt.xlabel("Time (UT)")
 		plt.xticks([t0, t1, t2, t3, t4, t5], [TOW2UT(t0), TOW2UT(t1), TOW2UT(t2), TOW2UT(t3), TOW2UT(t4), TOW2UT(t5)])
@@ -77,12 +81,12 @@ def VTEC_time(all_dfs):
 		d, y = day.split("_")
 		plt.title("Vertical TEC ({}-{})".format(d, y))
 		plt.legend()
-		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/VTEC_{}.png".format(day, day))
+		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
 		
 	
-def VTEC_STEC(all_dfs):
+def VTEC_STEC(all_dfs, map_fn):
 
 	for day in all_dfs:
 		print(day)
@@ -95,13 +99,14 @@ def VTEC_STEC(all_dfs):
 		l = 0
 		for satellite in SVID:
 			df_sat = df_day.loc[df_day['SVID'] == satellite, ['TOW', 'elevation', 'TEC', 'locktime']]
-			df_p = df_sat.loc[df_sat['TEC']>0, ['TOW', 'elevation', 'TEC', 'locktime']] 
+			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
 			
+			map_method = getattr(map, map_fn)
 			minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation']]
-			minlock['VTEC'] = minlock['TEC']/map1(minlock['elevation'])
+			minlock['VTEC'] = minlock['TEC']/map_method(minlock['elevation'])
 			minlock_VTEC = minlock.loc[minlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock['VTEC'] = maxlock['TEC']/map1(maxlock['elevation'])
+			maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
 			maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 
 			plt.figure(1)
@@ -110,19 +115,19 @@ def VTEC_STEC(all_dfs):
 			l += 1
 	
 		plt.figure(1)
-		x = plt.clim(0,90)
+		x = plt.clim(30,90)
 		plt.colorbar()
 		plt.xlabel("Slant TEC (TECU)")
 		plt.ylabel("Vertical TEC (TECU)")
 		d, y = day.split("_")
 		plt.title("VTEC vs STEC ({}-{})".format(d, y))
 		plt.legend()
-		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/VTEC_STEC_{}.png".format(day, day))
+		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_STEC_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
 	
 	
-def VTEC_averaged(all_dfs, iri = False):	
+def VTEC_averaged(all_dfs, map_fn, iri = False):	
 	
 	for day in all_dfs:
 		print(day)
@@ -136,10 +141,11 @@ def VTEC_averaged(all_dfs, iri = False):
 		median_VTEC = np.array([])
 		RMS_VTEC = np.array([])
 		for time in TOW:
+			map_method = getattr(map, map_fn)
 			df_sat = df_day.loc[df_day['TOW'] == time, ['TOW', 'elevation', 'TEC', 'locktime']]
-			df_p = df_sat.loc[df_sat['TEC']>0, ['TOW', 'elevation', 'TEC', 'locktime']] 
+			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']]  
 			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock['VTEC'] = maxlock['TEC']/map1(maxlock['elevation'])
+			maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
 			maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 			
 			m_VTEC = np.mean(maxlock_VTEC['VTEC'])
@@ -152,6 +158,7 @@ def VTEC_averaged(all_dfs, iri = False):
 		plt.plot(TOW, mean_VTEC, c = 'blue', label = "$VTEC_{mean}$")
 		plt.plot(TOW, median_VTEC, c = 'red', label = "$VTEC_{median}$")
 		plt.plot(TOW, RMS_VTEC, c = 'black', label = "$VTEC_{RMS}$")
+
 		if iri == True:
 			dayOfYear, Year = day.split("_")
 			Year = '20' + year
@@ -178,19 +185,19 @@ def VTEC_averaged(all_dfs, iri = False):
 		d, y = day.split("_")
 		plt.title("Vertical TEC ({}-{})".format(d, y))
 		plt.legend()
-		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/VTEC_averaged_{}.png".format(day, day))
+		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_averaged_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
 		
 		
 
-all_dfs = day(glob.glob("PUNE323?.17_.ismr"))
-'''
-VTEC_time(all_dfs)
+all_dfs = day(glob.glob("*.ismr"))
+
+VTEC_time(all_dfs, map_fn = "map3")
 print("Done!")
-VTEC_STEC(all_dfs)
+VTEC_STEC(all_dfs, map_fn = "map3")
 print("Done!")
-VTEC_averaged(all_dfs)
+VTEC_averaged(all_dfs, map_fn = "map3")
 print("Done!")
-'''
-VTEC_averaged(all_dfs, iri = False)
+
+#VTEC_averaged(all_dfs, iri = False)
