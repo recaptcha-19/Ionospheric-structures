@@ -6,15 +6,18 @@ from matplotlib import rc
 import pandas as pd
 import glob
 from day import day
-from datetime import timedelta
+import datetime
+import iri2016 as ion
 
 rc("text", usetex = True)
 R_earth = 6371
 h_ion = 350
+lat = 19.0919   #latitude of GMRT
+long = 74.0506  #longitude of GMRT
 
 def TOW2UT(TOW):
 	TOW = TOW%86400
-	x = str(timedelta(seconds = TOW))
+	x = str(datetime.timedelta(seconds = TOW))
 	return x
 
 def rms(array):
@@ -76,7 +79,6 @@ def VTEC_time(all_dfs):
 		plt.legend()
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/VTEC_{}.png".format(day, day))
 		print("Saved")
-		plt.show()
 		plt.close()
 		
 	
@@ -117,11 +119,10 @@ def VTEC_STEC(all_dfs):
 		plt.legend()
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/VTEC_STEC_{}.png".format(day, day))
 		print("Saved")
-		plt.show()
 		plt.close()
 	
 	
-def VTEC_averaged(all_dfs):	
+def VTEC_averaged(all_dfs, iri = False):	
 	
 	for day in all_dfs:
 		print(day)
@@ -151,6 +152,17 @@ def VTEC_averaged(all_dfs):
 		plt.plot(TOW, mean_VTEC, c = 'blue', label = "$VTEC_{mean}$")
 		plt.plot(TOW, median_VTEC, c = 'red', label = "$VTEC_{median}$")
 		plt.plot(TOW, RMS_VTEC, c = 'black', label = "$VTEC_{RMS}$")
+		if iri == True:
+			dayOfYear, Year = day.split("_")
+			Year = '20' + year
+			d = datetime.datetime.strptime('{} {}'.format(dayOfYear, Year),'%j %Y')
+			calendar_day = d.strftime('%Y-%m-%d')
+			start_time = TOW2UT(np.min(TOW))
+			end_time = TOW2UT(np.max(TOW))
+			start = calendar_day + "T{}".format(start_time)
+			end = calendar_day + "T{}".format(end_time)
+			time_profile = ion.timeprofile((start, end), datetime.timedelta(minutes = 30), [0, 2000, 10], lat, long)
+			plt.plot(time_profile.time, time_profile.TEC, '--', c = 'g', label = 'IRI')
 
 		h = (np.max(TOW) - np.min(TOW))/5
 		t0 = np.min(TOW)
@@ -168,15 +180,17 @@ def VTEC_averaged(all_dfs):
 		plt.legend()
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/VTEC_averaged_{}.png".format(day, day))
 		print("Saved")
-		plt.show()
 		plt.close()
 		
 		
-		
-all_dfs = day(glob.glob("*.ismr"))
+
+all_dfs = day(glob.glob("PUNE323?.17_.ismr"))
+'''
 VTEC_time(all_dfs)
 print("Done!")
 VTEC_STEC(all_dfs)
 print("Done!")
 VTEC_averaged(all_dfs)
 print("Done!")
+'''
+VTEC_averaged(all_dfs, iri = False)
