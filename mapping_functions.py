@@ -6,6 +6,7 @@ rc("text", usetex = True)
 R_earth = 6371
 h_ion = 350
 d = 10
+#sample comment
 
 def map3(el):
 	f = R_earth/(R_earth + h_ion)
