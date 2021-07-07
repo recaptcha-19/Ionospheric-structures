@@ -6,7 +6,7 @@ import glob
 from day import day
 import datetime
 import iri2016 as ion
-import mapping_functions as map
+import mapping_functions as mapf
 
 rc("text", usetex = True)
 R_earth = 6371
@@ -26,7 +26,7 @@ def rms(array):
 def map_comparison(el, maps):
 	plt.figure()
 	for map_fn in maps:
-		map_method = getattr(mapping_functions, map_fn)
+		map_method = getattr(mapf, map_fn)
 		plt.plot(el, map_method(el), label = map_fn)
 	plt.xlabel("Elevation ($^\circ$)")
 	plt.ylabel("Map function")
@@ -51,7 +51,7 @@ def VTEC_time(all_dfs, map_fn):
 			df_sat = df_day.loc[df_day['SVID'] == satellite, ['TOW', 'elevation', 'TEC', 'locktime']]
 			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
 			
-			map_method = getattr(map, map_fn)
+			map_method = getattr(mapf, map_fn)
 			minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation']]
 			minlock['VTEC'] = minlock['TEC']/map_method(minlock['elevation'])
 			minlock_VTEC = minlock.loc[minlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
@@ -101,7 +101,7 @@ def VTEC_STEC(all_dfs, map_fn):
 			df_sat = df_day.loc[df_day['SVID'] == satellite, ['TOW', 'elevation', 'TEC', 'locktime']]
 			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
 			
-			map_method = getattr(map, map_fn)
+			map_method = getattr(mapf, map_fn)
 			minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation']]
 			minlock['VTEC'] = minlock['TEC']/map_method(minlock['elevation'])
 			minlock_VTEC = minlock.loc[minlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
@@ -141,7 +141,7 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		median_VTEC = np.array([])
 		RMS_VTEC = np.array([])
 		for time in TOW:
-			map_method = getattr(map, map_fn)
+			map_method = getattr(mapf, map_fn)
 			df_sat = df_day.loc[df_day['TOW'] == time, ['TOW', 'elevation', 'TEC', 'locktime']]
 			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']]  
 			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
@@ -188,16 +188,17 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_averaged_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
-		
-		
+'''		
+el = np.linspace(30,89,60)
+map_comparison(el, maps = ["map1", "map2", "map3", "map4"])
+'''
+all_dfs = day(glob.glob("PUNE323?.17_.ismr"))
 
-all_dfs = day(glob.glob("*.ismr"))
-
-VTEC_time(all_dfs, map_fn = "map3")
+VTEC_time(all_dfs, map_fn = "map4")
 print("Done!")
-VTEC_STEC(all_dfs, map_fn = "map3")
+VTEC_STEC(all_dfs, map_fn = "map4")
 print("Done!")
-VTEC_averaged(all_dfs, map_fn = "map3")
+VTEC_averaged(all_dfs, map_fn = "map4")
 print("Done!")
 
 #VTEC_averaged(all_dfs, iri = False)
