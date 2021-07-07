@@ -188,7 +188,7 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_averaged_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
-'''		
+	
 el = np.linspace(30,89,60)
 map_comparison(el, maps = ["map1", "map2", "map3", "map4"])
 '''
@@ -200,5 +200,5 @@ VTEC_STEC(all_dfs, map_fn = "map4")
 print("Done!")
 VTEC_averaged(all_dfs, map_fn = "map4")
 print("Done!")
-
+'''
 #VTEC_averaged(all_dfs, iri = False)
