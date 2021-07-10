@@ -81,6 +81,7 @@ def VTEC_time(all_dfs, map_fn):
 		d, y = day.split("_")
 		plt.title("Vertical TEC ({}-{})".format(d, y))
 		plt.legend()
+		plt.grid()
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
@@ -122,6 +123,7 @@ def VTEC_STEC(all_dfs, map_fn):
 		d, y = day.split("_")
 		plt.title("VTEC vs STEC ({}-{})".format(d, y))
 		plt.legend()
+		plt.grid()
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_STEC_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
@@ -185,20 +187,21 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		d, y = day.split("_")
 		plt.title("Vertical TEC ({}-{})".format(d, y))
 		plt.legend()
+		plt.grid()
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_averaged_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
-	
+'''	
 el = np.linspace(30,89,60)
 map_comparison(el, maps = ["map1", "map2", "map3", "map4"])
 '''
-all_dfs = day(glob.glob("PUNE323?.17_.ismr"))
+all_dfs = day(glob.glob("*.ismr"))
 
-VTEC_time(all_dfs, map_fn = "map4")
-print("Done!")
-VTEC_STEC(all_dfs, map_fn = "map4")
-print("Done!")
-VTEC_averaged(all_dfs, map_fn = "map4")
-print("Done!")
-'''
+VTEC_time(all_dfs, map_fn = "map1")
+print("Done!!!!!!!!!!")
+VTEC_STEC(all_dfs, map_fn = "map1")
+print("Done!!!!!!!!!!")
+VTEC_averaged(all_dfs, map_fn = "map1")
+print("Done!!!!!!!!!!")
+
 #VTEC_averaged(all_dfs, iri = False)
