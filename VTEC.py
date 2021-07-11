@@ -36,6 +36,11 @@ def map_comparison(el, maps):
 	plt.show()
 	plt.close()
 
+def VTEC(STEC, elevation, map_func):
+	map_method = getattr(mapf, map_func)
+	VTEC = STEC/map_method(elevation)
+	return VTEC
+
 def VTEC_time(all_dfs, map_fn):
 	
 	for day in all_dfs:
@@ -51,12 +56,11 @@ def VTEC_time(all_dfs, map_fn):
 			df_sat = df_day.loc[df_day['SVID'] == satellite, ['TOW', 'elevation', 'TEC', 'locktime']]
 			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
 			
-			map_method = getattr(mapf, map_fn)
 			minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation']]
-			minlock['VTEC'] = minlock['TEC']/map_method(minlock['elevation'])
+			minlock['VTEC'] = VTEC(STEC = minlock['TEC'], elevation = minlock['elevation'], map_func = map_fn)
 			minlock_VTEC = minlock.loc[minlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
+			maxlock['VTEC'] = VTEC(STEC = maxlock['TEC'], elevation = maxlock['elevation'], map_func = map_fn)
 			maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 			
 			plt.figure(0)
@@ -102,12 +106,11 @@ def VTEC_STEC(all_dfs, map_fn):
 			df_sat = df_day.loc[df_day['SVID'] == satellite, ['TOW', 'elevation', 'TEC', 'locktime']]
 			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
 			
-			map_method = getattr(mapf, map_fn)
 			minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation']]
-			minlock['VTEC'] = minlock['TEC']/map_method(minlock['elevation'])
+			minlock['VTEC'] = VTEC(STEC = minlock['TEC'], elevation = minlock['elevation'], map_func = map_fn)
 			minlock_VTEC = minlock.loc[minlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
+			maxlock['VTEC'] = VTEC(STEC = maxlock['TEC'], elevation = maxlock['elevation'], map_func = map_fn)
 			maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 
 			plt.figure(1)
@@ -143,11 +146,10 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		median_VTEC = np.array([])
 		RMS_VTEC = np.array([])
 		for time in TOW:
-			map_method = getattr(mapf, map_fn)
 			df_sat = df_day.loc[df_day['TOW'] == time, ['TOW', 'elevation', 'TEC', 'locktime']]
 			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']]  
 			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
+			maxlock['VTEC'] = VTEC(STEC = maxlock['TEC'], elevation = maxlock['elevation'], map_func = map_fn)
 			maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
 			
 			m_VTEC = np.mean(maxlock_VTEC['VTEC'])
@@ -191,17 +193,53 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_averaged_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
-'''	
-el = np.linspace(30,89,60)
-map_comparison(el, maps = ["map1", "map2", "map3", "map4"])
-'''
-all_dfs = day(glob.glob("*.ismr"))
 
-VTEC_time(all_dfs, map_fn = "map1")
-print("Done!!!!!!!!!!")
-VTEC_STEC(all_dfs, map_fn = "map1")
-print("Done!!!!!!!!!!")
-VTEC_averaged(all_dfs, map_fn = "map1")
-print("Done!!!!!!!!!!")
 
-#VTEC_averaged(all_dfs, iri = False)
+def VTEC_comparison(all_dfs, map_fn):
+	t = 300
+
+	for day in all_dfs:
+		year = day[4:]
+		df_day = all_dfs[day]
+		TOW = np.unique(df_day['TOW'])
+		SVID = np.unique(df_day['SVID'])
+
+		df = df_day.loc[(df_day['elevation'] > 30) & (df_day['locktime'] > 180), ['SVID', 'TOW', 'TEC', 'elevation']]
+		df['VTEC'] = VTEC(df['TEC'], df['elevation'], map_func = "map3")
+		ind = np.asarray(df.index)
+
+		combinations = []
+		for i in range(len(ind)):
+			current = ind[i]
+			rest = ind[i+1:]
+			current_list = current*np.ones(len(rest))
+			current_comb = (np.vstack((rest, current_list))).T
+			for element in current_comb:
+				combinations.append(element)
+		combinations = np.asarray(combinations)
+		combinations = combinations.astype('int64')
+
+		delta_els = []
+		delta_VTECs = []
+		for indices in combinations:
+			p, q = indices
+			el1 = df.loc[p].at['elevation']
+			el2 = df.loc[q].at['elevation']
+			delta_el = abs(el1 - el2)
+			delta_els.append(delta_el)
+			VTEC1 = df.loc[p].at['VTEC']
+			VTEC2 = df.loc[q].at['VTEC']
+			delta_VTEC = abs(VTEC1 - VTEC2)
+			delta_VTECs.append(delta_VTEC)
+
+		plt.figure()
+		plt.scatter(delta_els, delta_VTECs)
+		plt.xlabel("$\Delta \epsilon$")
+		plt.ylabel("$\Delta VTEC$")
+		plt.grid()
+		plt.show()
+		plt.close()
+
+
+all_dfs = day(glob.glob("PUNE323?.17_.ismr"))
+VTEC_comparison(all_dfs, map_fn = 'map3')
