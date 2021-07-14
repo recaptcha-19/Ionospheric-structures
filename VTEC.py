@@ -7,6 +7,7 @@ from day import day
 import datetime
 import iri2016 as ion
 import mapping_functions as mapf
+from itertools import combinations
 
 rc("text", usetex = True)
 R_earth = 6371
@@ -23,18 +24,10 @@ def TOW2UT(TOW):
 def rms(array):
 	return np.sqrt(np.mean(array**2))
 
-def map_comparison(el, maps):
-	plt.figure()
-	for map_fn in maps:
-		map_method = getattr(mapf, map_fn)
-		plt.plot(el, map_method(el), label = map_fn)
-	plt.xlabel("Elevation ($^\circ$)")
-	plt.ylabel("Map function")
-	plt.title("Map function comparison")
-	plt.legend()
-	plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/map_fn_comparison.png")
-	plt.show()
-	plt.close()
+def VTEC(STEC, elevation, map_func):
+	map_method = getattr(mapf, map_func)
+	VTEC = STEC/map_method(elevation)
+	return VTEC
 
 def VTEC_time(all_dfs, map_fn):
 	
@@ -191,17 +184,61 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_averaged_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
-'''	
-el = np.linspace(30,89,60)
-map_comparison(el, maps = ["map1", "map2", "map3", "map4"])
-'''
-all_dfs = day(glob.glob("*.ismr"))
 
-VTEC_time(all_dfs, map_fn = "map1")
-print("Done!!!!!!!!!!")
-VTEC_STEC(all_dfs, map_fn = "map1")
-print("Done!!!!!!!!!!")
-VTEC_averaged(all_dfs, map_fn = "map1")
-print("Done!!!!!!!!!!")
 
-#VTEC_averaged(all_dfs, iri = False)
+def VTEC_comparison(all_dfs, map_fn):
+
+	for day in all_dfs:
+		year = day[4:]
+		df_day = all_dfs[day]
+		
+		SVID = np.unique(df_day['SVID'])
+
+		#df = df_day.loc[(df_day['elevation'] > 30) & (df_day['elevation'] < 35) & (df_day['locktime'] > 180) & (df_day['TOW'] == 600), ['SVID', 'TOW', 'TEC', 'elevation']]
+		df = df_day.loc[(df_day['locktime'] > 180) & (df_day['elevation'] > 30) & (df_day['TEC'] > 0), ['SVID', 'TOW', 'TEC', 'elevation']]
+		el = np.unique(df['elevation'])
+		el = el[~np.isnan(el)]
+		df['VTEC'] = VTEC(df['TEC'], df['elevation'], map_func = map_fn)
+		bin_angles = np.arange(np.min(el), np.max(el) + 2, 2)
+		bin_labels = ['{}-{}'.format(bin_angles[i], bin_angles[i+1]) for i in range(len(bin_angles)-1)]
+		df['elevation_bins'] = pd.cut(df['elevation'], bins = bin_angles, labels = bin_labels)
+		
+		delta_VTEC_info = {}
+		for bin in bin_labels:
+			#print(bin)
+			df_bin = df.loc[df['elevation_bins'] == bin, ['SVID', 'TOW', 'TEC', 'VTEC', 'elevation']]
+			#print("Bin size: {}".format(df_bin.size))
+			TOW = np.asarray(df_bin['TOW'])
+
+			idx_sort = np.argsort(TOW)
+			sorted_TOW = TOW[idx_sort]
+			vals, idx_start, count = np.unique(sorted_TOW, return_counts = True, return_index = True)
+			res = np.split(idx_sort, idx_start[1:])
+			vals = vals[count > 1]
+			res = filter(lambda x: x.size > 1, res)
+			list_indices = list(res)
+
+			mean_els = []
+			delta_VTECs = []
+			for indices in list_indices:
+				comb = list(combinations(indices, 2))
+				#print(comb)
+				for index in comb:
+					a,b = index
+					el1 = df_bin['elevation'].iloc[a]
+					el2 = df_bin['elevation'].iloc[b]
+					mean_el = (el1 + el2)/2
+					mean_els.append(mean_el)
+					VTEC1 = df_bin['VTEC'].iloc[a]
+					VTEC2 = df_bin['VTEC'].iloc[b]
+					delta_VTEC = abs(VTEC1 - VTEC2)
+					delta_VTECs.append(delta_VTEC)
+
+			delta_VTECs = np.asarray(delta_VTECs)
+			mean_els = np.asarray(mean_els)
+			delta_VTEC_info['{}_delta_VTECs'.format(bin)] = delta_VTECs
+			delta_VTEC_info['{}_mean_els'.format(bin)] = mean_els
+
+		np.save("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_delta_VTEC_info.npy".format(day, day), delta_VTEC_info)
+		print("Saved!")
+
