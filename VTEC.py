@@ -257,3 +257,4 @@ def VTEC_comparison(all_dfs, map_fn):
 		np.save("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_delta_VTEC_info.npy".format(day, day), delta_VTEC_info)
 		print("Saved!")
 
+
