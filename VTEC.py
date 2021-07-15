@@ -29,6 +29,17 @@ def VTEC(STEC, elevation, map_func):
 	VTEC = STEC/map_method(elevation)
 	return VTEC
 
+def clean(df, elevation = False, TEC = False, VTEC = False, locktime = False):
+	if elevation == True:
+		df = df[df['elevation'] > 30]
+	if TEC == True:
+		df = df[df['TEC'] > 0]
+	if VTEC == True:
+		df = df[df['VTEC'] > 0]
+	if locktime == True:
+		df = df[df['locktime'] > 180]
+	return df	
+
 def VTEC_time(all_dfs, map_fn):
 	
 	for day in all_dfs:
@@ -42,15 +53,15 @@ def VTEC_time(all_dfs, map_fn):
 		l = 0
 		for satellite in SVID:
 			df_sat = df_day.loc[df_day['SVID'] == satellite, ['TOW', 'elevation', 'TEC', 'locktime']]
-			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
+			#df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
+			df_p = clean(df_sat, elevation = True, TEC = True)
 			
-			map_method = getattr(mapf, map_fn)
-			minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation']]
-			minlock['VTEC'] = minlock['TEC']/map_method(minlock['elevation'])
-			minlock_VTEC = minlock.loc[minlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
-			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
-			maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
+			minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation', 'locktime']]
+			minlock['VTEC'] = VTEC(minlock['TEC'], minlock['elevation'], map_func = map_fn)
+			minlock_VTEC = clean(minlock, VTEC = True)
+			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation', 'locktime']]
+			maxlock['VTEC'] = VTEC(maxlock['TEC'], maxlock['elevation'], map_func = map_fn)
+			maxlock_VTEC = clean(maxlock, VTEC = True)
 			
 			plt.figure(0)
 			plt.scatter(minlock_VTEC['TOW'], minlock_VTEC['VTEC'], marker = 's', c = minlock_VTEC['elevation'], label = "Locktime $\leq$ 3 min" if l == 0 else "")
@@ -93,15 +104,15 @@ def VTEC_STEC(all_dfs, map_fn):
 		l = 0
 		for satellite in SVID:
 			df_sat = df_day.loc[df_day['SVID'] == satellite, ['TOW', 'elevation', 'TEC', 'locktime']]
-			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
-			
-			map_method = getattr(mapf, map_fn)
+			#df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']] 
+			df_p = clean(df_sat, elevation = True, TEC = True)
+
 			minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation']]
-			minlock['VTEC'] = minlock['TEC']/map_method(minlock['elevation'])
-			minlock_VTEC = minlock.loc[minlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
+			minlock['VTEC'] = VTEC(minlock['TEC'], minlock['elevation'], map_func = map_fn)
+			minlock_VTEC = clean(minlock, VTEC = True)
 			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
-			maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
+			maxlock['VTEC'] = VTEC(maxlock['TEC'], maxlock['elevation'], map_func = map_fn)
+			maxlock_VTEC = clean(maxlock, VTEC = True)
 
 			plt.figure(1)
 			plt.scatter(minlock_VTEC['TEC'], minlock_VTEC['VTEC'], marker = 's', c = minlock_VTEC['elevation'], label = "Locktime $\leq$ 3 min" if l == 0 else "")
@@ -136,13 +147,16 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		median_VTEC = np.array([])
 		RMS_VTEC = np.array([])
 		for time in TOW:
-			map_method = getattr(mapf, map_fn)
+			
 			df_sat = df_day.loc[df_day['TOW'] == time, ['TOW', 'elevation', 'TEC', 'locktime']]
 			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']]  
-			maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
-			maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
-			
+			#maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
+			maxlock = clean(df_sat, elevation = True, TEC = True, locktime = True)
+			#maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
+			maxlock['VTEC'] = VTEC(maxlock['TEC'], maxlock['elevation'], map_func = map_fn)
+			#maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
+			maxlock_VTEC = clean(maxlock, VTEC = True)
+
 			m_VTEC = np.mean(maxlock_VTEC['VTEC'])
 			mean_VTEC = np.append(mean_VTEC, m_VTEC)
 			med_VTEC = np.median(maxlock_VTEC['VTEC'])
@@ -195,7 +209,8 @@ def VTEC_comparison(all_dfs, map_fn):
 		SVID = np.unique(df_day['SVID'])
 
 		#df = df_day.loc[(df_day['elevation'] > 30) & (df_day['elevation'] < 35) & (df_day['locktime'] > 180) & (df_day['TOW'] == 600), ['SVID', 'TOW', 'TEC', 'elevation']]
-		df = df_day.loc[(df_day['locktime'] > 180) & (df_day['elevation'] > 30) & (df_day['TEC'] > 0), ['SVID', 'TOW', 'TEC', 'elevation']]
+		#df = df_day.loc[(df_day['locktime'] > 180) & (df_day['elevation'] > 30) & (df_day['TEC'] > 0), ['SVID', 'TOW', 'TEC', 'elevation']]
+		df = clean(df_day, elevation = True, TEC = True, locktime = True)
 		el = np.unique(df['elevation'])
 		el = el[~np.isnan(el)]
 		df['VTEC'] = VTEC(df['TEC'], df['elevation'], map_func = map_fn)
