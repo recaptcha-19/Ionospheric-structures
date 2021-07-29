@@ -52,5 +52,34 @@ def day(files):
 
 	return all_dfs
 	
-
+	
+	
+def block_creator(files):
+	block = [file_name[4:6]+'_'+file_name[9:11] for file_name in files]
+	block = list(set(block))
+	block.sort()
+	
+	comb_dict = {}
+	for days in block:
+		day_comb, year = days.split('_')
+		label = "PUNE{}??.{}_.ismr".format(day_comb, year)
+		dfs = day(glob.glob(label))
+		dfs_list = []
+		for st in dfs:
+			dfs_list.append(dfs[st])
+		block_df = pd.concat(dfs_list)
+		comb_dict[days] = block_df
+	return comb_dict
+	
+'''
+files = glob.glob("*.ismr")
+block_list = block_creator(files)
+parent_dir = '/Data/rpriyadarshan/ismr/gcd_mean_el_plots'
+for directory in block_list:
+	path = os.path.join(parent_dir, directory)
+	os.mkdir(path)
+'''
+		
+#st = glob.glob("PUNE36??.17_.ismr")
+#block_creator(st)
 

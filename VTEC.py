@@ -3,13 +3,13 @@ import matplotlib.pyplot as plt
 from matplotlib import rc
 import pandas as pd
 import glob
-from day import day
+from day import day, block_creator
 import datetime
 import iri2016 as ion
 import mapping_functions as mapf
 from itertools import combinations
 
-rc("text", usetex = True)
+#rc("text", usetex = True)
 R_earth = 6371
 h_ion = 350
 d = 100
@@ -44,6 +44,16 @@ def VTEC(STEC, elevation, map_func):
 	map_method = getattr(mapf, map_func)
 	VTEC = STEC/map_method(elevation)
 	return VTEC
+
+def great_circle_distance(el1, el2, az1, az2):
+	el1 = np.deg2rad(el1)
+	el2 = np.deg2rad(el2)
+	az1 = np.deg2rad(az1)
+	az2 = np.deg2rad(az2)
+	delta_el = el1 - el2
+	delta_az = az1 - az2
+	gcd = 2*np.arcsin(np.sqrt((np.sin(delta_el/2))**2 + np.cos(el1)*np.cos(el2)*(np.sin(delta_az/2))**2))
+	return gcd
 
 def VTEC_time(all_dfs, map_fn):
 	
@@ -205,7 +215,7 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		plt.close()
 
 
-def VTEC_comparison(all_dfs, map_fn):
+def VTEC_comparison(all_dfs, map_fn, print_output = False):
 
 	for day in all_dfs:
 		year = day[4:]
@@ -226,7 +236,7 @@ def VTEC_comparison(all_dfs, map_fn):
 		delta_VTEC_info = {}
 		for bin in bin_labels:
 			#print(bin)
-			df_bin = df.loc[df['elevation_bins'] == bin, ['SVID', 'TOW', 'TEC', 'VTEC', 'elevation']]
+			df_bin = df.loc[df['elevation_bins'] == bin, ['SVID', 'TOW', 'TEC', 'VTEC', 'elevation', 'azimuth']]
 			#print("Bin size: {}".format(df_bin.size))
 			TOW = np.asarray(df_bin['TOW'])
 
@@ -237,9 +247,13 @@ def VTEC_comparison(all_dfs, map_fn):
 			vals = vals[count > 1]
 			res = filter(lambda x: x.size > 1, res)
 			list_indices = list(res)
+			#print(list_indices)
 
 			mean_els = []
 			delta_VTECs = []
+			delta_azs = []
+			gcds = []
+			SVIDs = []
 			for indices in list_indices:
 				comb = list(combinations(indices, 2))
 				#print(comb)
@@ -249,15 +263,170 @@ def VTEC_comparison(all_dfs, map_fn):
 					el2 = df_bin['elevation'].iloc[b]
 					mean_el = (el1 + el2)/2
 					mean_els.append(mean_el)
+					az1 = df_bin['azimuth'].iloc[a]
+					az2 = df_bin['azimuth'].iloc[b]
+					delta_az = abs(az1 - az2)
+					delta_azs.append(delta_az)
 					VTEC1 = df_bin['VTEC'].iloc[a]
 					VTEC2 = df_bin['VTEC'].iloc[b]
 					delta_VTEC = abs(VTEC1 - VTEC2)
 					delta_VTECs.append(delta_VTEC)
+					gcd = great_circle_distance(el1, el2, az1, az2)
+					gcd = np.rad2deg(gcd)
+					gcds.append(gcd)
+					SVID1 = df_bin['SVID'].iloc[a]
+					SVID2 = df_bin['SVID'].iloc[b]
+					SVID_pair = '{}-{}'.format(SVID1, SVID2)
+					SVIDs.append(SVID_pair)
+					#print("Mean elevation: {}".format(mean_el))
+					#print("Difference in azimuth: {}".format(delta_az))
+					#print("Difference in VTEC: {}".format(delta_VTEC))
+					#print("Great circle distance: {}".format(gcd))
 
 			delta_VTECs = np.asarray(delta_VTECs)
 			mean_els = np.asarray(mean_els)
-			delta_VTEC_info['{}_delta_VTECs'.format(bin)] = delta_VTECs
-			delta_VTEC_info['{}_mean_els'.format(bin)] = mean_els
+			delta_azs = np.asarray(delta_azs)
+			gcds = np.asarray(gcds)
+			data_dict = {'Mean elevation': mean_els, 'Azimuth difference': delta_azs, 'VTEC difference': delta_VTECs, 'Great circle distance': gcds, 'Satellite ids': SVIDs}
+			df_el_bin = pd.DataFrame(data_dict)
+			delta_VTEC_info[bin] = df_el_bin
+			#delta_VTEC_info['{}_delta_VTECs'.format(bin)] = delta_VTECs
+			#delta_VTEC_info['{}_mean_els'.format(bin)] = mean_els
 
 		np.save("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_delta_VTEC_info.npy".format(day, day), delta_VTEC_info)
-		print("Saved!")
+		#print(delta_VTEC_info)
+		print(day + "Saved!")
+
+
+
+def VTEC_min_comparison(all_dfs, map_fn):
+	
+	main_df_titles = ['elevations', 'mean_elevation', 'VTECs', 'STECs', 'delta_VTEC', 'great_circle_distance', 'day', 'time', 'SVIDs', 'azimuthal_angles'] 
+	main_dict = {}
+	
+	for day in all_dfs:
+	
+		day_block, year = day.split('_')
+		els = []
+		VTECs = []
+		STECs = []
+		delta_VTECs = []
+		gcds = []
+		days = []
+		TOWs = []
+		SVIDs = []
+		azs = []
+		mean_els = []
+	
+		#year = day[4:]
+		df_day = all_dfs[day]
+		SVID = np.unique(df_day['SVID'])
+		TOW = np.unique(df_day['TOW'])
+		
+		df = clean(df_day, elevation = True, TEC = True, locktime = True)
+		el = np.unique(df['elevation'])
+		el = el[~np.isnan(el)]
+		df['VTEC'] = VTEC(df['TEC'], df['elevation'], map_func = map_fn)
+		bin_angles = np.arange(np.min(el), np.max(el) + 2, 2)
+		bin_labels = ['{}-{}'.format(bin_angles[i], bin_angles[i+1]) for i in range(len(bin_angles)-1)]
+		df['elevation_bins'] = pd.cut(df['elevation'], bins = bin_angles, labels = bin_labels)
+		
+		for time in TOW:
+			df_time = df.loc[df['TOW'] == time, ['SVID', 'TOW', 'TEC', 'VTEC', 'elevation', 'azimuth', 'elevation_bins']]
+			el = np.asarray(df_time['elevation'])
+			
+			idx_sort = np.argsort(el)
+			sorted_el = el[idx_sort]
+			vals, idx_start, count = np.unique(sorted_el, return_counts = True, return_index = True)
+			res = np.split(idx_sort, idx_start[1:])
+			vals = vals[count > 1]
+			res = filter(lambda x: x.size > 1, res)
+			list_indices = list(res)
+			#print(list_indices)
+						
+			for indices in list_indices:
+				comb = list(combinations(indices, 2))
+				#print(comb)
+				for index in comb:
+					a,b = index
+					el1 = df_time['elevation'].iloc[a]
+					el2 = df_time['elevation'].iloc[b]
+					el_array = np.array([el1, el2])
+					els.append(el_array)
+					mean_el = (el1 + el2)/2
+					mean_els.append(mean_el)
+					
+					az1 = df_time['azimuth'].iloc[a]
+					az2 = df_time['azimuth'].iloc[b]
+					delta_az = abs(az1 - az2)
+					az_array = np.array([az1, az2])
+					azs.append(az_array)
+					#delta_azs.append(delta_az)
+					
+					STEC1 = df_time['TEC'].iloc[a]
+					STEC2 = df_time['TEC'].iloc[b]
+					STEC_array = np.array([STEC1, STEC2])
+					STECs.append(STEC_array)
+					
+					VTEC1 = df_time['VTEC'].iloc[a]
+					VTEC2 = df_time['VTEC'].iloc[b]
+					VTEC_array = np.array([VTEC1, VTEC2])
+					VTECs.append(VTEC_array)
+					delta_VTEC = abs(VTEC1 - VTEC2)
+					delta_VTECs.append(delta_VTEC)
+					
+					gcd = great_circle_distance(el1, el2, az1, az2)
+					gcd = np.rad2deg(gcd)
+					gcds.append(gcd)
+					
+					SVID1 = df_time['SVID'].iloc[a]
+					SVID2 = df_time['SVID'].iloc[b]
+					SVID_array = [SVID1, SVID2]
+					SVIDs.append(SVID_array)
+					
+					TOW_converted = TOW2UT(time)
+					TOWs.append(TOW_converted)
+					
+					days.append(day)
+		
+	
+		main_list = [els, mean_els, VTECs, STECs, delta_VTECs, gcds, days, TOWs, SVIDs, azs]
+		for i in range(len(main_list)):
+			main_dict[main_df_titles[i]] = main_list[i]
+			#print(len(main_list[i]))
+		df_main = pd.DataFrame(main_dict)
+		SVID = np.unique(df['SVID'])
+		#print(df_main[['elevations', 'azimuthal_angles', 'VTECs', 'time', 'SVIDs']].head(20))
+		#print(SVID)
+		
+		for no in SVID:
+			plt.figure()
+			df_main['SVID_presence'] = [True if no in SVID_list else False for SVID_list in df_main['SVIDs']]
+			df_SVID = df_main.loc[df_main['SVID_presence'] == True]
+			plt.scatter(df_SVID['mean_elevation'], df_SVID['great_circle_distance'], c = 10*df_SVID['delta_VTEC'])
+			x = plt.clim(0,150)
+			plt.colorbar()
+			plt.xlabel("Mean elevation")
+			plt.ylabel("Great circle distance")
+			plt.title("{}, year {}, SVID: {}".format(day_block, year, no))
+			plt.savefig("/Data/rpriyadarshan/ismr/gcd_mean_el_plots/{}/{}_SVID_{}.png".format(day, day, no))
+			plt.close()
+		print("{} done!".format(day))
+		
+filestring = "PUNE14??.18_.ismr"
+all_dfs = block_creator(glob.glob(filestring))
+#print(all_dfs)
+VTEC_min_comparison(all_dfs, map_fn = "map3")
+'''
+#df_main, SVIDs = VTEC_min_comparison(all_dfs, map_fn = "map3")
+#print(df_main['time'])
+SVID = 75.0
+df_main['SVID_presence'] = [True if SVID in SVID_list else False for SVID_list in df_main['SVIDs']]
+df_SVID = df_main.loc[df_main['SVID_presence'] == True]
+#print(df_SVID)
+plt.scatter(df_SVID['mean_elevation'], df_SVID['great_circle_distance'], s = 10*df_SVID['delta_VTEC'], alpha = 0.3)
+plt.xlabel("Mean elevation")
+plt.ylabel("Great circle distance")
+plt.title("${}$; SVID: {}".format(files, SVID))
+plt.savefig("Sample6.png")
+'''
