@@ -29,7 +29,7 @@ def VTEC(STEC, elevation, map_func):
 	VTEC = STEC/map_method(elevation)
 	return VTEC
 
-def clean(df, elevation = False, TEC = False, VTEC = False, locktime = False):
+def clean(df, GPS = False, elevation = False, TEC = False, VTEC = False, locktime = False):
 	if elevation == True:
 		df = df[df['elevation'] > 30]
 	if TEC == True:
@@ -38,6 +38,8 @@ def clean(df, elevation = False, TEC = False, VTEC = False, locktime = False):
 		df = df[df['VTEC'] > 0]
 	if locktime == True:
 		df = df[df['locktime'] > 180]
+	if GPS == True:
+		df = df[(df['SVID'] >= 1) & (df['SVID'] <= 37)]
 	return df	
 
 def VTEC(STEC, elevation, map_func):
@@ -396,26 +398,27 @@ def VTEC_min_comparison(all_dfs, map_fn):
 			#print(len(main_list[i]))
 		df_main = pd.DataFrame(main_dict)
 		SVID = np.unique(df['SVID'])
-		#print(df_main[['elevations', 'azimuthal_angles', 'VTECs', 'time', 'SVIDs']].head(20))
+		#print(df_main[['elevations', 'azimuthal_angles', 'STECs', 'time', 'SVIDs']].head(20))
 		#print(SVID)
 		
 		for no in SVID:
 			plt.figure()
 			df_main['SVID_presence'] = [True if no in SVID_list else False for SVID_list in df_main['SVIDs']]
 			df_SVID = df_main.loc[df_main['SVID_presence'] == True]
-			plt.scatter(df_SVID['mean_elevation'], df_SVID['great_circle_distance'], c = 10*df_SVID['delta_VTEC'])
-			x = plt.clim(0,150)
+			plt.scatter(df_SVID['mean_elevation'], df_SVID['great_circle_distance'], c = df_SVID['delta_VTEC'])
+			x = plt.clim(0,100)
 			plt.colorbar()
 			plt.xlabel("Mean elevation")
 			plt.ylabel("Great circle distance")
 			plt.title("{}, year {}, SVID: {}".format(day_block, year, no))
-			plt.savefig("/Data/rpriyadarshan/ismr/gcd_mean_el_plots/{}/{}_SVID_{}.png".format(day, day, no))
+			plt.savefig("/Data/rpriyadarshan/ismr/gcd_mean_el_plots/{}/GPS_only_{}_SVID_{}.png".format(day, day, no))
 			plt.close()
 		print("{} done!".format(day))
 		
-filestring = "PUNE14??.18_.ismr"
+filestring = "*.ismr"
 all_dfs = block_creator(glob.glob(filestring))
-#print(all_dfs)
+for st in all_dfs:
+	all_dfs[st] = clean(all_dfs[st], GPS = True)
 VTEC_min_comparison(all_dfs, map_fn = "map3")
 '''
 #df_main, SVIDs = VTEC_min_comparison(all_dfs, map_fn = "map3")
