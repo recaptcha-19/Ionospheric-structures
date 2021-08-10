@@ -5,21 +5,29 @@ import pandas as pd
 import glob
 from day import day, block_creator
 import datetime
-import iri2016 as ion
 import mapping_functions as mapf
 from itertools import combinations
+from iri2016 import timeprofile
 
 #rc("text", usetex = True)
 R_earth = 6371
 h_ion = 350
 d = 100
-lat = 19.0919   #latitude of GMRT
-long = 74.0506  #longitude of GMRT
+lat_GMRT = 19.0919   #latitude of GMRT
+long_GMRT = 74.0506  #longitude of GMRT
 
 def TOW2UT(TOW):
 	TOW = TOW%86400
 	x = str(datetime.timedelta(seconds = TOW))
 	return x
+	
+def UT2TOW(UT):
+	hrs, mins, sec = UT.split(':')
+	hrs = int(hrs)
+	mins = int(mins)
+	sec = int(sec)
+	TOW = hrs*3600 + mins*60 + sec
+	return TOW
 
 def rms(array):
 	return np.sqrt(np.mean(array**2))
@@ -150,7 +158,7 @@ def VTEC_STEC(all_dfs, map_fn):
 		plt.close()
 	
 	
-def VTEC_averaged(all_dfs, map_fn, iri = False):	
+def VTEC_averaged(all_dfs, map_fn):	
 	
 	for day in all_dfs:
 		print(day)
@@ -159,6 +167,24 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		TOW = np.unique(df_day['TOW'])
 		SVID = np.unique(df_day['SVID'])
 		el = np.unique(df_day['elevation'])
+		
+		start_t = TOW[2]
+		end_t = TOW[-2]
+		iri_time = np.arange(start_t, end_t, 1*60)
+		start_time = TOW2UT(start_t)
+		end_time = TOW2UT(end_t)
+		dayOfYear, year = day.split("_")
+		Year = '20' + year
+		d = datetime.datetime.strptime('{} {}'.format(dayOfYear, Year),'%j %Y')
+		calendar_day = d.strftime('%Y-%m-%d')
+		start = calendar_day + "T{}".format(start_time)
+		end = calendar_day + "T{}".format(end_time)
+		print(start_time)
+		print(end_time)
+		time_prof = timeprofile((start, end), datetime.timedelta(minutes = 1), [0, 2000, 10], lat_GMRT, long_GMRT)
+		iri_TEC = time_prof.TEC/10**16
+		plt.figure()
+		plt.plot(iri_time, iri_TEC, '--', c = 'g', label = 'IRI')
 
 		mean_VTEC = np.array([])
 		median_VTEC = np.array([])
@@ -166,7 +192,6 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		for time in TOW:
 			
 			df_sat = df_day.loc[df_day['TOW'] == time, ['TOW', 'elevation', 'TEC', 'locktime']]
-			df_p = df_sat.loc[(df_sat['TEC']>0) & (df_sat['elevation']>30), ['TOW', 'elevation', 'TEC', 'locktime']]  
 			#maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
 			maxlock = clean(df_sat, elevation = True, TEC = True, locktime = True)
 			#maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
@@ -180,23 +205,10 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 			median_VTEC = np.append(median_VTEC, med_VTEC)
 			R_VTEC = rms(maxlock_VTEC['VTEC'])
 			RMS_VTEC = np.append(RMS_VTEC, R_VTEC)
-			
+	
 		plt.plot(TOW, mean_VTEC, c = 'blue', label = "$VTEC_{mean}$")
 		plt.plot(TOW, median_VTEC, c = 'red', label = "$VTEC_{median}$")
 		plt.plot(TOW, RMS_VTEC, c = 'black', label = "$VTEC_{RMS}$")
-
-		if iri == True:
-			dayOfYear, Year = day.split("_")
-			Year = '20' + year
-			d = datetime.datetime.strptime('{} {}'.format(dayOfYear, Year),'%j %Y')
-			calendar_day = d.strftime('%Y-%m-%d')
-			start_time = TOW2UT(np.min(TOW))
-			end_time = TOW2UT(np.max(TOW))
-			start = calendar_day + "T{}".format(start_time)
-			end = calendar_day + "T{}".format(end_time)
-			time_profile = ion.timeprofile((start, end), datetime.timedelta(minutes = 30), [0, 2000, 10], lat, long)
-			plt.plot(time_profile.time, time_profile.TEC, '--', c = 'g', label = 'IRI')
-
 		h = (np.max(TOW) - np.min(TOW))/5
 		t0 = np.min(TOW)
 		t1 = np.min(TOW) + h
@@ -204,7 +216,6 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		t3 = np.min(TOW) + 3*h
 		t4 = np.min(TOW) + 4*h
 		t5 = np.max(TOW)
-		
 		plt.xlabel("Time (UT)")
 		plt.xticks([t0, t1, t2, t3, t4, t5], [TOW2UT(t0), TOW2UT(t1), TOW2UT(t2), TOW2UT(t3), TOW2UT(t4), TOW2UT(t5)])
 		plt.ylabel("Vertical TEC (TECU)")
@@ -212,10 +223,10 @@ def VTEC_averaged(all_dfs, map_fn, iri = False):
 		plt.title("Vertical TEC ({}-{})".format(d, y))
 		plt.legend()
 		plt.grid()
-		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_averaged_{}.png".format(day, map_fn, day))
+		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/IRI_GPS_only_{}_VTEC_averaged_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
-
+		
 
 def VTEC_comparison(all_dfs, map_fn, print_output = False):
 
@@ -374,7 +385,7 @@ def VTEC_min_comparison(all_dfs, map_fn):
 					VTEC2 = df_time['VTEC'].iloc[b]
 					VTEC_array = np.array([VTEC1, VTEC2])
 					VTECs.append(VTEC_array)
-					delta_VTEC = abs(VTEC1 - VTEC2)
+					delta_VTEC = (VTEC1 - VTEC2)
 					delta_VTECs.append(delta_VTEC)
 					
 					gcd = great_circle_distance(el1, el2, az1, az2)
@@ -405,31 +416,36 @@ def VTEC_min_comparison(all_dfs, map_fn):
 			plt.figure()
 			df_main['SVID_presence'] = [True if no in SVID_list else False for SVID_list in df_main['SVIDs']]
 			df_SVID = df_main.loc[df_main['SVID_presence'] == True]
-			plt.scatter(df_SVID['mean_elevation'], df_SVID['great_circle_distance'], c = df_SVID['delta_VTEC'])
-			x = plt.clim(0,100)
+			for i in range(len(df_SVID)):
+				SVID_list = df_SVID['SVIDs'].iloc[i]
+				if no == SVID_list[1]:
+					df_SVID['delta_VTEC'].iloc[i] *= -1		
+			plt.scatter(df_SVID['mean_elevation'], df_SVID['great_circle_distance'], c = df_SVID['delta_VTEC'], cmap = 'seismic', alpha = 0.4)
+			x = plt.clim(-15,15)
 			plt.colorbar()
 			plt.xlabel("Mean elevation")
 			plt.ylabel("Great circle distance")
 			plt.title("{}, year {}, SVID: {}".format(day_block, year, no))
-			plt.savefig("/Data/rpriyadarshan/ismr/gcd_mean_el_plots/{}/GPS_only_{}_SVID_{}.png".format(day, day, no))
+			plt.savefig("/Data/rpriyadarshan/ismr/gcd_mean_el_plots/{}/GPS_only_no_abs_{}_SVID_{}.png".format(day, day, no))
 			plt.close()
 		print("{} done!".format(day))
-		
-filestring = "*.ismr"
-all_dfs = block_creator(glob.glob(filestring))
+
+filestring = "PUNE1???.18_.ismr"
+all_dfs = block_creator(glob.glob(filestring), block_size = 100)
 for st in all_dfs:
 	all_dfs[st] = clean(all_dfs[st], GPS = True)
 VTEC_min_comparison(all_dfs, map_fn = "map3")
+
 '''
-#df_main, SVIDs = VTEC_min_comparison(all_dfs, map_fn = "map3")
-#print(df_main['time'])
-SVID = 75.0
-df_main['SVID_presence'] = [True if SVID in SVID_list else False for SVID_list in df_main['SVIDs']]
-df_SVID = df_main.loc[df_main['SVID_presence'] == True]
-#print(df_SVID)
-plt.scatter(df_SVID['mean_elevation'], df_SVID['great_circle_distance'], s = 10*df_SVID['delta_VTEC'], alpha = 0.3)
-plt.xlabel("Mean elevation")
-plt.ylabel("Great circle distance")
-plt.title("${}$; SVID: {}".format(files, SVID))
-plt.savefig("Sample6.png")
+all_dfs = day(glob.glob("*.ismr"))
+for day in all_dfs:
+	all_dfs[day] = clean(all_dfs[day], GPS = True)
+print("Cleaned")
+VTEC_averaged(all_dfs, map_fn = "map3")
+#print(UT2TOW('23:59:41'))
+'''
+'''
+for st in all_dfs:
+	all_dfs[st] = clean(all_dfs[st], GPS = True)
+VTEC_time(all_dfs, map_fn = "map3")
 '''
