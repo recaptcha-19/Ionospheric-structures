@@ -8,6 +8,7 @@ import datetime
 import mapping_functions as mapf
 from itertools import combinations
 from iri2016 import timeprofile
+from pickle import dump
 
 #rc("text", usetex = True)
 R_earth = 6371
@@ -28,9 +29,6 @@ def UT2TOW(UT):
 	sec = int(sec)
 	TOW = hrs*3600 + mins*60 + sec
 	return TOW
-
-def rms(array):
-	return np.sqrt(np.mean(array**2))
 
 def VTEC(STEC, elevation, map_func):
 	map_method = getattr(mapf, map_func)
@@ -111,7 +109,7 @@ def VTEC_time(all_dfs, map_fn):
 		plt.title("Vertical TEC ({}-{})".format(d, y))
 		plt.legend()
 		plt.grid()
-		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_VTEC_{}.png".format(day, map_fn, day))
+		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/{}_GPS_only_VTEC_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
 		
@@ -159,18 +157,21 @@ def VTEC_STEC(all_dfs, map_fn):
 	
 	
 def VTEC_averaged(all_dfs, map_fn):	
-	
+		
+	VTEC_dict = {}
 	for day in all_dfs:
 		print(day)
 		year = day[4:]
 		df_day = all_dfs[day]
 		TOW = np.unique(df_day['TOW'])
+		#print(TOW[0])
+		#print(TOW[-1])
 		SVID = np.unique(df_day['SVID'])
 		el = np.unique(df_day['elevation'])
 		
-		start_t = TOW[2]
-		end_t = TOW[-2]
-		iri_time = np.arange(start_t, end_t, 1*60)
+		start_t = 120
+		end_t = 86280
+		#iri_time = np.arange(start_t, end_t, 1*60)
 		start_time = TOW2UT(start_t)
 		end_time = TOW2UT(end_t)
 		dayOfYear, year = day.split("_")
@@ -182,33 +183,68 @@ def VTEC_averaged(all_dfs, map_fn):
 		print(start_time)
 		print(end_time)
 		time_prof = timeprofile((start, end), datetime.timedelta(minutes = 1), [0, 2000, 10], lat_GMRT, long_GMRT)
-		iri_TEC = time_prof.TEC/10**16
-		plt.figure()
-		plt.plot(iri_time, iri_TEC, '--', c = 'g', label = 'IRI')
-
+		df_t = time_prof.time.to_dataframe()
+		iri_time = [UT2TOW((str(df_t['time'][i]).split(" "))[1]) for i in range(len(df_t.index))]
+		iri_time = np.asarray(iri_time)
+		IRI_TEC = time_prof.TEC
+		df_tec = IRI_TEC.to_dataframe()
+		iri_tec = df_tec['TEC']/10**16
+		iri_tec = np.asarray(iri_tec)
+		#print(iri_tec)
+		#print(np.shape(TOW))
+		#print(np.shape(iri_time))
 		mean_VTEC = np.array([])
 		median_VTEC = np.array([])
 		RMS_VTEC = np.array([])
+		
+		day_VTEC_dict = {}
+		sat_numbers = []
 		for time in TOW:
 			
-			df_sat = df_day.loc[df_day['TOW'] == time, ['TOW', 'elevation', 'TEC', 'locktime']]
+			df_sat = df_day.loc[df_day['TOW'] == time, ['TOW', 'elevation', 'TEC', 'locktime', 'SVID']]
+			sat_number = len(df_sat.index)
+			sat_numbers.append(sat_number)
 			#maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
-			maxlock = clean(df_sat, elevation = True, TEC = True, locktime = True)
+			#maxlock = clean(df_sat, elevation = True, TEC = True, locktime = True)
 			#maxlock['VTEC'] = maxlock['TEC']/map_method(maxlock['elevation'])
-			maxlock['VTEC'] = VTEC(maxlock['TEC'], maxlock['elevation'], map_func = map_fn)
+			df_sat['VTEC'] = VTEC(df_sat['TEC'], df_sat['elevation'], map_func = map_fn)
 			#maxlock_VTEC = maxlock.loc[maxlock['VTEC']>0, ['TEC', 'VTEC', 'TOW', 'elevation']]
-			maxlock_VTEC = clean(maxlock, VTEC = True)
+			maxlock_VTEC = clean(df_sat, VTEC = True)
 
 			m_VTEC = np.mean(maxlock_VTEC['VTEC'])
 			mean_VTEC = np.append(mean_VTEC, m_VTEC)
 			med_VTEC = np.median(maxlock_VTEC['VTEC'])
 			median_VTEC = np.append(median_VTEC, med_VTEC)
-			R_VTEC = rms(maxlock_VTEC['VTEC'])
+			R_VTEC = np.std(maxlock_VTEC['VTEC'])
 			RMS_VTEC = np.append(RMS_VTEC, R_VTEC)
-	
-		plt.plot(TOW, mean_VTEC, c = 'blue', label = "$VTEC_{mean}$")
-		plt.plot(TOW, median_VTEC, c = 'red', label = "$VTEC_{median}$")
-		plt.plot(TOW, RMS_VTEC, c = 'black', label = "$VTEC_{RMS}$")
+		
+		sat_numbers = np.asarray(sat_numbers)
+		day_VTEC_dict['{}_sat_numbers'.format(day)] = sat_numbers
+		day_VTEC_dict['{}_mean_VTEC'.format(day)] = mean_VTEC
+		day_VTEC_dict['{}_median_VTEC'.format(day)] = median_VTEC
+		day_VTEC_dict['{}_RMS_VTEC'.format(day)] = RMS_VTEC
+		day_VTEC_dict['{}_TOW'.format(day)] = TOW
+		day_VTEC_dict['{}_IRI_time'.format(day)] = iri_time
+		day_VTEC_dict['{}_IRI_TEC'.format(day)] = iri_tec
+		
+		VTEC_dict[day] = day_VTEC_dict
+		print("Saved master dictionary")
+		#TOW = TOW[2:-2]
+		d, y = day.split("_")
+		
+		fig = plt.figure()
+		gs = fig.add_gridspec(2, hspace = 0)
+		ax1, ax2 = gs.subplots()
+		#print(type(sat_numbers))
+		ax1.plot(TOW%86400, sat_numbers)
+		ax1.set_ylabel("Number of satellites")
+		ax1.set_title("{}-{}".format(d, y))
+		ax1.grid()
+		
+		ax2.plot(iri_time, iri_tec, '--', c = 'g', label = 'IRI')
+		ax2.plot(TOW%86400, mean_VTEC, c = 'blue', label = "$VTEC_{mean}$")
+		ax2.plot(TOW%86400, median_VTEC, c = 'red', label = "$VTEC_{median}$")
+		ax2.plot(TOW%86400, RMS_VTEC, c = 'black', label = "$VTEC_{RMS}$")
 		h = (np.max(TOW) - np.min(TOW))/5
 		t0 = np.min(TOW)
 		t1 = np.min(TOW) + h
@@ -216,17 +252,19 @@ def VTEC_averaged(all_dfs, map_fn):
 		t3 = np.min(TOW) + 3*h
 		t4 = np.min(TOW) + 4*h
 		t5 = np.max(TOW)
-		plt.xlabel("Time (UT)")
-		plt.xticks([t0, t1, t2, t3, t4, t5], [TOW2UT(t0), TOW2UT(t1), TOW2UT(t2), TOW2UT(t3), TOW2UT(t4), TOW2UT(t5)])
-		plt.ylabel("Vertical TEC (TECU)")
+		ax2.set_xlabel("Time (UT)")
+		#ax2.set_xticks([t0, t1, t2, t3, t4, t5], [TOW2UT(t0), TOW2UT(t1), TOW2UT(t2), TOW2UT(t3), TOW2UT(t4), TOW2UT(t5)])
+		ax2.set_ylabel("Vertical TEC (TECU)")
 		d, y = day.split("_")
-		plt.title("Vertical TEC ({}-{})".format(d, y))
-		plt.legend()
-		plt.grid()
-		plt.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/IRI_GPS_only_{}_VTEC_averaged_{}.png".format(day, map_fn, day))
+		#ax2.set_title("Vertical TEC ({}-{})".format(d, y))
+		ax2.legend()
+		ax2.grid()
+		
+		fig.savefig("/Data/rpriyadarshan/ismr/sat_TEC_plots/{}/IRI_GPS_only_{}_VTEC_averaged_{}.png".format(day, map_fn, day))
 		print("Saved")
 		plt.close()
 		
+	return VTEC_dict
 
 def VTEC_comparison(all_dfs, map_fn, print_output = False):
 
@@ -429,23 +467,30 @@ def VTEC_min_comparison(all_dfs, map_fn):
 			plt.savefig("/Data/rpriyadarshan/ismr/gcd_mean_el_plots/{}/GPS_only_no_abs_{}_SVID_{}.png".format(day, day, no))
 			plt.close()
 		print("{} done!".format(day))
-
+		
+print("done")
+'''
 filestring = "PUNE1???.18_.ismr"
 all_dfs = block_creator(glob.glob(filestring), block_size = 100)
 for st in all_dfs:
 	all_dfs[st] = clean(all_dfs[st], GPS = True)
 VTEC_min_comparison(all_dfs, map_fn = "map3")
-
 '''
-all_dfs = day(glob.glob("*.ismr"))
+'''
+all_dfs = day(glob.glob("PUNE153?.18_.ismr"))
 for day in all_dfs:
-	all_dfs[day] = clean(all_dfs[day], GPS = True)
+	all_dfs[day] = clean(all_dfs[day], elevation = True, TEC = True, locktime = True, GPS = True)
 print("Cleaned")
-VTEC_averaged(all_dfs, map_fn = "map3")
+VTEC_dict = VTEC_averaged(all_dfs, map_fn = "map3")
+#with open("/Data/rpriyadarshan/ismr/VTEC_averaged.pkl", "w") as fp:
+#	dump(VTEC_dict, fp)
+#print(VTEC_dict)
 #print(UT2TOW('23:59:41'))
 '''
 '''
+filestring = "PUNE153?.18_.ismr"
+all_dfs = day(glob.glob(filestring))
 for st in all_dfs:
-	all_dfs[st] = clean(all_dfs[st], GPS = True)
-VTEC_time(all_dfs, map_fn = "map3")
+	all_dfs[st] = clean(all_dfs[st], elevation = True, TEC = True, GPS = True)
+VTEC_averaged(all_dfs, map_fn = "map3")
 '''

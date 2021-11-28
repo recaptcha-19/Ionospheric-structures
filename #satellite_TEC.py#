@@ -1,0 +1,100 @@
+import numpy as np
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib import rc
+import pandas as pd
+import glob
+from datetime import timedelta
+
+rc("text", usetex = True)
+R_earth = 6371
+h_ion = 350
+
+files_17 = glob.glob("*17_.ismr")
+files_18 = glob.glob("*18_.ismr")
+files_19 = glob.glob("*19_.ismr")
+files = [files_17, files_18, files_19]
+pattern = r'[0-9]{3}'
+titles = ['week', 'TOW', 'SVID', 'azimuth', 'elevation', 'TEC', 'locktime']
+
+def TOW2UT(TOW):
+
+    days = TOW/86400
+    days = int(days)
+    h = TOW - days*86400
+    hours = h/3600
+    hours = int(hours)
+    m = h - hours*3600
+    min = m/60
+    min = int(min)
+    s = m - min*60
+    sec = int(s)
+    return "{}:{}:{}".format(hours, min, sec)
+
+year = 17
+for year_files in files:
+    days = []
+    for file in year_files:
+        x = re.findall(pattern, file)
+        days.append(x)
+
+    dfs = []
+    for day in days:
+        day_files = [i for i in year_files if day in i]
+        for file in day_files:
+            sat_data = np.loadtxt(file, delimiter = ',', usecols = [0,1,2,4,5,22,41])
+            df = pd.dataframe(sat_data, columns = titles)
+            dfs.append(df)
+        df_day = pd.concat(dfs)
+        
+        SVID = np.unique(df_day['SVID'])
+        for satellite in SVID:
+            df_sat = df_day.loc[df_day['SVID] == satellite, ['TOW', 'elevation', 'TEC', 'locktime']]
+            df_p = df_sat[df_sat['TEC']>0]
+            ds1 = set([tuple(line) for line in df_sat.values])
+            ds2 = set([tuple(line) for line in df_p.values])
+            df_n = pd.DataFrame(list(ds1.difference(ds2)))
+            minlock = df_p.loc[df_p['locktime']<180, ['TOW', 'TEC', 'elevation']]
+            maxlock = df_p.loc[df_p['locktime']>180, ['TOW', 'TEC', 'elevation']]
+            plt.scatter(minlock['TOW'], minlock['TEC'], marker = 's', c = minlock['elevation'])
+            plt.scatter(maxlock['TOW'], maxlock['TEC'], marker = 'o', s = 5, c = maxlock['elevation'])     
+
+        h = (np.max(df_p['TOW']) - np.min(df_p['TOW']))/5
+        t0 = np.min(df_p['TOW'])
+        t1 = np.min(df_p['TOW']) + h
+        t2 = np.min(df_p['TOW']) + 2*h
+        t3 = np.min(df_p['TOW']) + 3*h
+        t4 = np.min(df_p['TOW']) + 4*h
+        t5 = np.max(df_p['TOW'])
+
+        plt.colorbar()
+        plt.clim(0,90)
+        plt.xlabel("Time (UT)")
+        plt.xticks([t0, t1, t2, t3, t4, t5], [TOW2UT(t0), TOW2UT(t1), TOW2UT(t2), TOW2UT(t3), TOW2UT(t4), TOW2UT(t5)])
+        plt.ylabel("Slant TEC (TECU)")
+        plt.title("Slant TEC on the {}th day of 20{}".format(day, year))
+        plt.savefig("sat_TEC_plots/STEC_{}_20{}.png".format(day, year))     
+        
+        plt.bar(SVID, df_day['SVID'].value_counts(dropna = False))
+        plt.xlabel("SVID")
+        plt.ylabel("No of occurrences")
+        plt.title("No of occurrences of each satellite on the {}th day, {}".format(day, year))
+        plt.savefig("no_of_sats_day_{}_{}".format(day, year))
+
+        min = df_day['TOW']
+        
+        min_count = []
+        for time in min:
+            df_temp = df_day.loc[df_day['TOW'] == time, 'SVID']
+            id = np.asarray(df_temp)
+            id = np.unique(id)
+            min_count.append(len(id))
+        min_count = np.asarray(min_count)
+
+        plt.plot(min, min_count)
+        plt.xlabel("Minute")
+        plt.ylabel("No of satellites per min")
+        plt.title("No of satellites seen on each minute of the {}th day, {}".format(day, year))
+        plt.savefig("no_of_sats_min_{}_{}".format(day, year))
+
+        year += 1        

@@ -1,0 +1,40 @@
+import numpy as np
+import matplotlib.pyplot as plt
+from matplotlib import rc
+import pandas as pd
+import glob
+from datetime import timedelta
+
+rc("text", usetex = True)
+R_earth = 6371
+h_ion = 350
+
+files_17 = glob.glob("*17_.ismr")
+files_18 = glob.glob("*18_.ismr")
+files_19 = glob.glob("*19_.ismr")
+files = [files_17, files_18, files_19]
+pattern = r'[0-9]{3}'
+titles = ['week', 'TOW', 'SVID', 'azimuth', 'elevation', 'TEC', 'locktime']
+
+for year_files in files:
+    days = []
+    for file in year_files:
+        x = re.findall(pattern, file)
+        days.append(x)
+    
+    for day in days:
+        
+dfs = []
+
+days_19 = []
+for file in files_19:
+    x = re.findall(pattern, file)
+    days_19.append(x)
+
+for day in days_19:
+    day_files = [i for i in files_19 if day in i]
+    for file in day_files:
+        sat_data = np.loadtxt(file, delimiter = ',', usecols = [0,1,2,4,5,22,41])
+        df = pd.dataframe(sat_data, columns = titles)
+        dfs.append(df)
+  
